@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Robot 2027 - Local AI V1</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; user-select: none; }
+    body {
+      margin: 0; background: #090d16; color: #f8fafc;
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: #111827; border-bottom: 1px solid #1f2937;
+      font-size: 12px; gap: 8px;
+    }
+    .pill {
+      padding: 4px 10px; border-radius: 999px; font-weight: 600;
+      background: #1e293b; color: #38bdf8; border: 1px solid #334155;
+    }
+    .pill.ready { color: #34d399; border-color: #059669; background: #064e3b55; }
+    .pill.busy { color: #fbbf24; border-color: #d97706; background: #78350f55; }
+    .pill.err { color: #f87171; border-color: #dc2626; background: #7f1d1d55; }
+
+    .face-stage {
+      height: 34vh; min-height: 190px; background: radial-gradient(circle at center, #172554 0%, #090d16 78%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      position: relative; border-bottom: 1px solid #1e293b;
+    }
+    .eyes-row { display: flex; gap: 54px; margin-bottom: 22px; }
+    .eye {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #38bdf8; box-shadow: 0 0 24px #38bdf8aa;
+      position: relative; transition: all 0.2s ease;
+      animation: blink 4.5s infinite;
+    }
+    .eye::after {
+      content: ''; position: absolute; top: 10px; left: 12px;
+      width: 14px; height: 14px; border-radius: 50%; background: #ffffff;
+    }
+    @keyframes blink {
+      0%, 94%, 100% { transform: scaleY(1); }
+      97% { transform: scaleY(0.08); }
+    }
+    .face-stage.thinking .eye {
+      background: #fbbf24; box-shadow: 0 0 24px #fbbf24aa;
+      animation: pulse 0.8s infinite alternate;
+    }
+    .face-stage.listening .eye {
+      background: #34d399; box-shadow: 0 0 28px #34d399cc;
+      transform: scale(1.12);
+    }
+    @keyframes pulse {
+      from { transform: scale(0.92); }
+      to { transform: scale(1.08); }
+    }
+    .mouth {
+      width: 58px; height: 14px; border-radius: 99px;
+      background: #38bdf8; box-shadow: 0 0 14px #38bdf888;
+      transition: all 0.1s ease;
+    }
+    .face-stage.speaking .mouth {
+      animation: talk 0.22s infinite alternate;
+    }
+    @keyframes talk {
+      0% { height: 10px; width: 52px; border-radius: 99px; }
+      100% { height: 32px; width: 44px; border-radius: 50%; }
+    }
+    .state-label {
+      position: absolute; bottom: 8px; right: 12px;
+      font-size: 11px; color: #64748b;
+    }
+
+    .mock-panel {
+      background: #111827; padding: 8px 12px; border-bottom: 1px solid #1f2937;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .mock-row { display: flex; gap: 6px; align-items: center; }
+    .mock-row label { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+    .mock-row input, .mock-row select {
+      flex: 1; background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+      padding: 5px 8px; border-radius: 6px; font-size: 12px;
+    }
+
+    .chat-area {
+      flex: 1; overflow-y: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .bubble {
+      max-width: 84%; padding: 10px 14px; border-radius: 14px;
+      font-size: 14px; line-height: 1.45; user-select: text;
+    }
+    .bubble.user { align-self: flex-end; background: #0284c7; color: #fff; border-bottom-right-radius: 2px; }
+    .bubble.bot { align-self: flex-start; background: #1e293b; border: 1px solid #334155; border-bottom-left-radius: 2px; }
+    .meta { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+    .quick-bar {
+      display: flex; gap: 6px; overflow-x: auto; padding: 6px 12px;
+      background: #0f172a; border-top: 1px solid #1e293b;
+    }
+    .chip {
+      white-space: nowrap; padding: 5px 10px; border-radius: 99px;
+      background: #1e293b; color: #cbd5e1; border: 1px solid #334155; font-size: 12px;
+    }
+    .input-bar {
+      display: flex; gap: 8px; padding: 10px 12px; background: #111827;
+      border-top: 1px solid #1f2937;
+    }
+    .input-bar input {
+      flex: 1; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 14px;
+    }
+    button {
+      border: none; border-radius: 10px; padding: 0 14px; font-weight: 700;
+      cursor: pointer; font-size: 14px;
+    }
+    .btn-mic { background: #10b981; color: #064e3b; }
+    .btn-mic.active { background: #ef4444; color: #fff; }
+    .btn-send { background: #0284c7; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <span id="modelStatus" class="pill busy">⏳ Đang khởi động AI...</span>
+    <span id="speedMetric" class="pill">⚡ -- ms</span>
+  </div>
+
+  <div id="faceStage" class="face-stage">
+    <div class="eyes-row">
+      <div class="eye"></div>
+      <div class="eye"></div>
+    </div>
+    <div class="mouth"></div>
+    <div id="stateLabel" class="state-label">STATE: IDLE</div>
+  </div>
+
+  <div class="mock-panel">
+    <div class="mock-row">
+      <label>Vai trò:</label>
+      <select id="personaSelect">
+        <option value="FRIEND">FRIEND (Bạn vui tính)</option>
+        <option value="TEACHER">TEACHER (Giáo viên)</option>
+        <option value="FAMILY">FAMILY (Người thân)</option>
+      </select>
+      <label>Chế độ:</label>
+      <select id="modeSelect">
+        <option value="V1_LOCAL">V1: Local Tự do</option>
+        <option value="V1_MOCK_FACT">V1: Test viết lại Fact</option>
+        <option value="V2_BACKEND">V2: Gọi API Backend</option>
+      </select>
+    </div>
+    <div class="mock-row" id="mockFactRow" style="display:none;">
+      <label>Fact mẫu:</label>
+      <input type="text" id="mockFactInput" value="Moms are real-life superheroes, Bi! Did you give your mom a big hug today?" />
+    </div>
+  </div>
+
+  <div id="chatArea" class="chat-area">
+    <div class="bubble bot">
+      Hello! I am Robot 2027. Wait a second while I wake up my local brain!
+    </div>
+  </div>
+
+  <div class="quick-bar">
+    <button class="chip" onclick="quickAsk('Hello robot, what is your name?')">"Hello robot..."</button>
+    <button class="chip" onclick="quickAsk('Tell me about my mom')">"Tell me about my mom"</button>
+    <button class="chip" onclick="quickAsk('Let us play hide and seek')">"Let us play hide and seek"</button>
+    <button class="chip" onclick="quickAsk('Tell me a short riddle')">"Tell me a riddle"</button>
+  </div>
+
+  <div class="input-bar">
+    <button id="micBtn" class="btn-mic" onclick="toggleMic()">🎤</button>
+    <input id="textInput" type="text" placeholder="Nói hoặc gõ tiếng Anh..." onkeypress="if(event.key==='Enter') sendChat()" />
+    <button class="btn-send" onclick="sendChat()">Gửi</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

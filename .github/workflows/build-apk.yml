@@ -1,0 +1,65 @@
+name: Build Robot2027 V1 APK (Capacitor + llama.cpp + Qwen0.5B)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout code từ GitHub
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Cài đặt Java 17 (Cho Gradle Android)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 4. Cài thư viện Capacitor & Tạo thư mục Android
+        run: |
+          npm install
+          npx cap add android
+
+      - name: 5. Tải lõi C++ llama.cpp (bản ổn định b4600)
+        run: |
+          mkdir -p android/app/src/main/cpp
+          git clone --depth 1 --branch b4600 https://github.com/ggml-org/llama.cpp.git android/app/src/main/cpp/llama.cpp
+
+      - name: 6. Chép cầu nối C++ JNI và Java Plugin vào Android
+        run: |
+          cp native_android/cpp/CMakeLists.txt android/app/src/main/cpp/
+          cp native_android/cpp/llama_jni.cpp android/app/src/main/cpp/
+          mkdir -p android/app/src/main/java/vn/io/khotrithucso/robot2027
+          cp native_android/java/vn/io/khotrithucso/robot2027/*.java android/app/src/main/java/vn/io/khotrithucso/robot2027/
+
+      - name: 7. Cấu hình CMake NDK và tắt nén file .gguf trong build.gradle
+        run: python3 native_android/patch_gradle.py
+
+      - name: 8. Tải trực tiếp Qwen2.5-0.5B-Instruct (Q4_K_M) từ Hugging Face vào assets
+        run: |
+          mkdir -p android/app/src/main/assets/models
+          curl -fL "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true" -o android/app/src/main/assets/models/brain_local.gguf
+          ls -lh android/app/src/main/assets/models/brain_local.gguf
+
+      - name: 9. Đồng bộ web vào Android & Build file APK
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 10. Xuất file APK để tải về cài lên điện thoại
+        uses: actions/upload-artifact@v4
+        with:
+          name: Robot2027-v1-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+ 
