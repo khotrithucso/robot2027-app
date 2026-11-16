@@ -26,8 +26,9 @@ jobs:
 
       - name: 4. Cài thư viện Capacitor & Tạo thư mục Android
         run: |
-          npm install
+          npm install --legacy-peer-deps
           npx cap add android
+
 
       - name: 5. Tải lõi C++ llama.cpp (bản ổn định b4600)
         run: |
