@@ -18,11 +18,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Cài đặt Java 17 (Cho Gradle Android)
+      - name: 3. Cài đặt Java 21 (Cho Gradle Android)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
+
 
       - name: 4. Cài thư viện Capacitor & Tạo thư mục Android
         run: |
